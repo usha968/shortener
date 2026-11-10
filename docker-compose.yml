@@ -1,0 +1,46 @@
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD}@postgres:5432/shortener
+    CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+  depends_on: [postgres, redis, clickhouse]
+  restart: unless-stopped
+  volumes: ["./data:/data:ro"]   # place GeoLite2-City.mmdb here
+
+services:
+  app:
+    <<: *app
+    ports: ["8000:8000"]
+  worker:
+    <<: *app
+    command: ["python", "-m", "worker.consumer"]
+  rescan:
+    <<: *app
+    command: ["python", "-m", "worker.rescan"]
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: shortener
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/postgres.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    restart: unless-stopped
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    restart: unless-stopped
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - chdata:/var/lib/clickhouse
+      - ./sql/clickhouse.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    restart: unless-stopped
+
+volumes: { pgdata: {}, redisdata: {}, chdata: {} }

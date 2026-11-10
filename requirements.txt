@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+asyncpg
+redis
+clickhouse-connect
+httpx
+geoip2
+user-agents
+pydantic-settings
+pytest
